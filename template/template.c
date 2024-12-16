@@ -40,6 +40,13 @@
 /******************************************************************************
  * Local Types
  ******************************************************************************/
+/**
+ * Local states type
+ */
+typedef enum
+{
+    STATE_IDLE = 0
+}state_t;
 
 /******************************************************************************
  * Local Variables
@@ -49,7 +56,7 @@
  */
 static struct local_data
 {
-
+    state_t state;
 }this;
 
 /******************************************************************************
@@ -66,11 +73,19 @@ static struct local_data
     #warning Pending to adapt
 void TEMPLATE_init()
 { 
-
+    this.state = STATE_IDLE;
 }
 
     #warning Pending to adapt
 void TEMPLATE_tasks()
 { 
-
+    switch (this.state)
+    {
+        case STATE_IDLE:
+            
+            break;
+        
+        default:
+            break;
+    }
 }
