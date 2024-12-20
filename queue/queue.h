@@ -1,18 +1,23 @@
-/*
- * ringbuf.h
- *
- *  Created on: Sep 13, 2021
- *      Author: btrud
- */
+/***************************************************************************//**
+ * @file        queue.h
+ * @brief       Provides the necessary interface elements for a successful use 
+ *              of the functionality.
+ * @author      Blas Truden
+ * @date        20241219
+ * @version     v1
+ * 
+ * @copyright   -
+ * 
+ * @details     This module is part of the BSI BSP core.
+ ******************************************************************************/
+#ifndef QUEUE_H_
+#define QUEUE_H_
 
-#ifndef INC_QUEUE_H_
-#define INC_QUEUE_H_
-
-#include <stdio.h>
-#include <stddef.h>
+/******************************************************************************
+ * Includes
+ ******************************************************************************/
 #include <stdint.h>
 #include <stdbool.h>
-#include <string.h>
 
 /******************************************************************************
  * Public Constants
@@ -43,20 +48,24 @@ typedef struct
 }queue_t;
 
 /******************************************************************************
+ * Callback Functions
+ ******************************************************************************/
+
+/******************************************************************************
  * Public Functions
  ******************************************************************************/
 /**
  * @brief Creates a new ring buffer
  * 
  * @param r pointer to a queue buffer structure
- * @param buf pointer to the buffer that this library will use for the queue
- * @param len size in bytes of the given buffer
+ * @param buf pointer to the buffer that will be used as a ring buffer
+ * @param len length of the buffer in elements
  * @param elem_size size in Bytes of each buffer element
  * 
  * @return true succeeded
  * @return false failed
  */
-bool QUEUE_Create(queue_t *r, void *buf, size_t len, size_t elem_size);
+bool QUEUE_Create(queue_t *r, void *buf, uint32_t len, size_t elem_size);
 
 /**
  * @brief Pulls an element from the queue
@@ -78,5 +87,4 @@ bool QUEUE_Pull(queue_t *r, void *dst);
  */
 bool QUEUE_Push(queue_t *r, void *src);
 
-
-#endif /* INC_QUEUE_H_ */
+#endif /* QUEUE_H_ */

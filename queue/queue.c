@@ -1,19 +1,39 @@
-/*
- * ringbuf.c
- *
- *  Created on: Sep 13, 2021
- *      Author: btrud
- */
-
+/*******************************************************************************
+ * @file        queue.c
+ * @brief       This file provides a generic queue functionality.
+ * @author      Blas Truden
+ * @date        20241219
+ * @version     v1
+ * 
+ * @copyright   -
+ * 
+ * @note		This module is part of the BSI BSP core.
+ ******************************************************************************/
 
 /******************************************************************************
  * Includes
  ******************************************************************************/
-#include <queue.h>
+#include "definitions.h"
+#include "queue.h"
+#include "debug.h"
 
 /******************************************************************************
  * Local Constants
  ******************************************************************************/
+// Debug options
+#define ENABLE_DEBUG        false
+#define DEBUG_TAG           "QUEUE"
+
+#if ENABLE_DEBUG == true
+#define DEBUG_PRINTF(format, ...) DEBUG_print(DEBUG_TAG, true, format, ##__VA_ARGS__)
+#define PRINTF(format, ...) DEBUG_print(0, true, format, ##__VA_ARGS__)
+#define PRINT(format, ...) DEBUG_print(0, false, format, ##__VA_ARGS__)
+#else
+#define DEBUG_PRINTF(format, ...)
+#define PRINTF(format, ...)
+#define PRINT(format, ...)
+#endif
+
 
 /******************************************************************************
  * Local Types
@@ -53,7 +73,7 @@ bool isFull(queue_t *r)
 /******************************************************************************
  * Public Functions
  ******************************************************************************/
-bool QUEUE_Create(queue_t *r, void *buf, size_t len, size_t elem_size)
+bool QUEUE_Create(queue_t *r, void *buf, uint32_t len, size_t elem_size)
 {
 	if(r == NULL) return false;
 	if(buf == NULL) return false;
