@@ -114,7 +114,7 @@ bool QUEUE_push(queue_t *r, void *src)
     return true;
 }
 
-void QUEUE_clean(queue_t *r)
+bool QUEUE_clean(queue_t *r)
 {
 	if(r == NULL) return false;
 
