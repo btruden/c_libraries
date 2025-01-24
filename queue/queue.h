@@ -65,7 +65,7 @@ typedef struct
  * @return true succeeded
  * @return false failed
  */
-bool QUEUE_Create(queue_t *r, void *buf, uint32_t len, size_t elem_size);
+bool QUEUE_create(queue_t *r, void *buf, uint32_t len, size_t elem_size);
 
 /**
  * @brief Pulls an element from the queue
@@ -75,7 +75,7 @@ bool QUEUE_Create(queue_t *r, void *buf, uint32_t len, size_t elem_size);
  * @return true succeeded
  * @return false failed
  */
-bool QUEUE_Pull(queue_t *r, void *dst);
+bool QUEUE_pull(queue_t *r, void *dst);
 
 /**
  * @brief Pushes an element into the queue
@@ -85,6 +85,15 @@ bool QUEUE_Pull(queue_t *r, void *dst);
  * @return true succeeded
  * @return false failed
  */
-bool QUEUE_Push(queue_t *r, void *src);
+bool QUEUE_push(queue_t *r, void *src);
+
+/**
+ * @brief Cleans the queue
+ * 
+ * @param r pointer to the queue to clean
+ * @return true succeeded
+ * @return false failed
+ */
+bool QUEUE_clean(queue_t *r);
 
 #endif /* QUEUE_H_ */

@@ -27,14 +27,13 @@
 #define DEBUG_TAG           "-"
 
 #if ENABLE_DEBUG == true
-#define DEBUG_PRINTF(format, ...) DEBUG_print(DEBUG_TAG, true, format, ##__VA_ARGS__)
-#define PRINTF(format, ...) DEBUG_print(0, true, format, ##__VA_ARGS__)
-#define PRINT(format, ...) DEBUG_print(0, false, format, ##__VA_ARGS__)
+#define DEBUG_MSG(format, ...) DEBUG_print(DEBUG_TAG, true, format, ##__VA_ARGS__)
 #else
-#define DEBUG_PRINTF(format, ...)
-#define PRINTF(format, ...)
-#define PRINT(format, ...)
+#define DEBUG_MSG(format, ...)
 #endif
+
+#define PRINT_LINE(format, ...) DEBUG_print(0, true, format, ##__VA_ARGS__)
+#define PRINT(format, ...) DEBUG_print(0, false, format, ##__VA_ARGS__)
 
 
 /******************************************************************************

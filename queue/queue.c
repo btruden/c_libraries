@@ -25,15 +25,13 @@
 #define DEBUG_TAG           "QUEUE"
 
 #if ENABLE_DEBUG == true
-#define DEBUG_PRINTF(format, ...) DEBUG_print(DEBUG_TAG, true, format, ##__VA_ARGS__)
-#define PRINTF(format, ...) DEBUG_print(0, true, format, ##__VA_ARGS__)
-#define PRINT(format, ...) DEBUG_print(0, false, format, ##__VA_ARGS__)
+#define DEBUG_MSG(format, ...) DEBUG_print(DEBUG_TAG, true, format, ##__VA_ARGS__)
 #else
-#define DEBUG_PRINTF(format, ...)
-#define PRINTF(format, ...)
-#define PRINT(format, ...)
+#define DEBUG_MSG(format, ...)
 #endif
 
+#define PRINT_LINE(format, ...) DEBUG_print(0, true, format, ##__VA_ARGS__)
+#define PRINT(format, ...) DEBUG_print(0, false, format, ##__VA_ARGS__)
 
 /******************************************************************************
  * Local Types
@@ -73,7 +71,7 @@ bool isFull(queue_t *r)
 /******************************************************************************
  * Public Functions
  ******************************************************************************/
-bool QUEUE_Create(queue_t *r, void *buf, uint32_t len, size_t elem_size)
+bool QUEUE_create(queue_t *r, void *buf, uint32_t len, size_t elem_size)
 {
 	if(r == NULL) return false;
 	if(buf == NULL) return false;
@@ -90,7 +88,7 @@ bool QUEUE_Create(queue_t *r, void *buf, uint32_t len, size_t elem_size)
 	return true;
 }
 
-bool QUEUE_Pull(queue_t *r, void *dst)
+bool QUEUE_pull(queue_t *r, void *dst)
 {
 	if(r == NULL) return false;
 	if(dst == NULL) return false;
@@ -103,7 +101,7 @@ bool QUEUE_Pull(queue_t *r, void *dst)
     return true;
 }
 
-bool QUEUE_Push(queue_t *r, void *src)
+bool QUEUE_push(queue_t *r, void *src)
 {
 	if(r == NULL) return false;
 	if(src == NULL) return false;
@@ -114,4 +112,15 @@ bool QUEUE_Push(queue_t *r, void *src)
     if(r->in_idx == r->out_idx) r->queue_full = true;
 
     return true;
+}
+
+void QUEUE_clean(queue_t *r)
+{
+	if(r == NULL) return false;
+
+	r->in_idx = 0;
+	r->out_idx = 0;
+	r->queue_full = false;
+
+	return true;
 }
