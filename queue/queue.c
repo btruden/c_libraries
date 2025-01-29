@@ -124,3 +124,22 @@ bool QUEUE_clean(queue_t *r)
 
 	return true;
 }
+
+uint32_t QUEUE_get_count(queue_t *r)
+{
+    if(r == NULL) return 0;
+
+    if(r->queue_full)
+    {
+        return r->buf_len;
+    }
+    
+    if(r->in_idx >= r->out_idx)
+    {
+        return r->in_idx - r->out_idx;
+    }
+    else
+    {
+        return r->buf_len - (r->out_idx - r->in_idx);
+    }
+}

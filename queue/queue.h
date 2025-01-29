@@ -96,4 +96,12 @@ bool QUEUE_push(queue_t *r, void *src);
  */
 bool QUEUE_clean(queue_t *r);
 
+/**
+ * Returns the current number of elements in the queue
+ * 
+ * @param r pointer to the queue to evaluate
+ * @return uint32_t number of elements in the queue, or 0 if queue pointer is invalid
+ */
+uint32_t QUEUE_get_count(queue_t *r);
+
 #endif /* QUEUE_H_ */
