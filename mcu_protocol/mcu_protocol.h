@@ -99,8 +99,9 @@
 #define MCU_PROTOCOL_MAX_PARAMS_LENGTH          32
 #define MCU_PROTOCOL_MAX_PARAMS_QTY             16
 
-#define MCU_PROTOCOL_MAX_FRAME_LENGTH (1 + MCU_PROTOCOL_MAX_MSG_ID_LENGTH + 1 + MCU_PROTOCOL_MAX_PAYLOAD_LENGTH + 1 + MCU_PROTOCOL_CRC_LENGTH + 1) // SOF + msgID + , + payload + , + CRC + EOF
-
+#define MCU_PROTOCOL_MAX_FRAME_LENGTH \
+    (1 + MCU_PROTOCOL_MAX_MSG_ID_LENGTH + 1 + MCU_PROTOCOL_MAX_PAYLOAD_LENGTH + \
+     1 + MCU_PROTOCOL_CRC_LENGTH + 1) // SOF + msgID + , + payload + , + CRC + EOF
 
 // Maximum number of message ID supported
 #define MCU_PROTOCOL_MAX_MSG_ID_QTY             32      // up to 255
@@ -278,10 +279,10 @@ MCU_PROTOCOL_error_code_t MCU_PROTOCOL_assemble_request(
  * @return Error code
  */
 MCU_PROTOCOL_error_code_t MCU_PROTOCOL_assemble_request_reply(
-    MCU_PROTOCOL_handle_t handle, 
-    uint8_t msg_id_idx, 
-    MCU_PROTOCOL_payload_list_t payload,
-    uint8_t *dst);
+                                        MCU_PROTOCOL_handle_t handle, 
+                                        uint8_t msg_id_idx, 
+                                        MCU_PROTOCOL_payload_list_t payload,
+                                        uint8_t *dst);
 
 /**
  * Assembles a notification message to the communication interface. 
@@ -298,9 +299,9 @@ MCU_PROTOCOL_error_code_t MCU_PROTOCOL_assemble_request_reply(
  * @return Error code
  */
 MCU_PROTOCOL_error_code_t MCU_PROTOCOL_assemble_notification(
-                                    MCU_PROTOCOL_handle_t handle, 
-                                    uint8_t msg_id_idx, 
-                                    MCU_PROTOCOL_payload_list_t payload,
-                                    uint8_t *dst);
+                                        MCU_PROTOCOL_handle_t handle, 
+                                        uint8_t msg_id_idx, 
+                                        MCU_PROTOCOL_payload_list_t payload,
+                                        uint8_t *dst);
 
 #endif /* MCU_PROTOCOL_H_ */
