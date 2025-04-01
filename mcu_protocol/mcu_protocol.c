@@ -9,7 +9,7 @@
  * Local Constants
  ******************************************************************************/
 // Debug options
-#define ENABLE_DEBUG        true
+#define ENABLE_DEBUG        false
 #define DEBUG_TAG           "MCU_PROTOCOL"
 
 #if ENABLE_DEBUG == true
@@ -22,7 +22,7 @@
 #define PRINT(format, ...) DEBUG_print(0, false, format, ##__VA_ARGS__)
 
 /**
- * CRC16 lookup table for high–order byte
+ * CRC16 lookup table for high�??order byte
  */
 static const unsigned char auchCRCHi[] = {
     0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81,
@@ -46,7 +46,7 @@ static const unsigned char auchCRCHi[] = {
 } ;
     
 /**
- * CRC16 lookup table for low–order byte
+ * CRC16 lookup table for low�??order byte
  */
 static const unsigned char auchCRCLo[] = {
     0x00, 0xC0, 0xC1, 0x01, 0xC3, 0x03, 0x02, 0xC2, 0xC6, 0x06, 0x07, 0xC7, 0x05, 0xC5, 0xC4,
@@ -264,7 +264,7 @@ static void assemble_msg(uint8_t sof,
     }
 
     // Add the CRC16
-    crc16 = get_crc16(&dst[1], strlen((char *)dst));
+    crc16 = get_crc16(&dst[1], strlen((char *)dst) - 1);
     sprintf((char *)crc16_str, "%04X", crc16);
     strcat((char *)dst, (char *)crc16_str);
 
@@ -273,94 +273,169 @@ static void assemble_msg(uint8_t sof,
 }
 
 /**
+ * Determines the message type based on the start of frame character.
+ *
+ * @param sof_char The start of frame character
+ * @return The corresponding message type
+ */
+static msg_type_t get_msg_type(uint8_t sof_char) {
+    switch (sof_char) {
+        case MCU_PROTOCOL_SOF_REQUEST:
+            return MSG_TYPE_REQUEST;
+        case MCU_PROTOCOL_SOF_REQUEST_REPLY:
+            return MSG_TYPE_REQUEST_REPLY;
+        case MCU_PROTOCOL_SOF_NOTIFICATION:
+            return MSG_TYPE_NOTIFICATION;
+        default:
+            return MSG_TYPE_REQUEST; // Default, though invalid SOF should be caught earlier
+    }
+}
+
+/**
+ * Finds the next occurrence of a delimiter in a buffer.
+ *
+ * @param buf Buffer to search in
+ * @param start Starting index to begin the search
+ * @param len Length of the buffer to search
+ * @param delimiter The delimiter character to find
+ * @return Index of the delimiter if found, -1 otherwise
+ */
+static int16_t find_next_delimiter(uint8_t *buf, uint16_t start, uint16_t len, char delimiter) {
+    for (uint16_t i = start; i < len; i++) {
+        if (buf[i] == delimiter) {
+            return i;
+        }
+    }
+    return -1;
+}
+
+/**
+ * Parses the payload string into individual parameters.
+ *
+ * @param payload_start Pointer to the start of the payload data
+ * @param payload_len Length of the payload data
+ * @param payload Pointer to the payload structure to fill
+ */
+static void parse_payload(uint8_t *payload_start, uint16_t payload_len, MCU_PROTOCOL_payload_list_t *payload) {
+    uint8_t param_idx = 0;
+    uint16_t start = 0;
+    
+    if (payload_len == 0) {
+        payload->params_qty = 0;
+        return;
+    }
+
+    for (uint16_t i = 0; i <= payload_len && param_idx < MCU_PROTOCOL_MAX_PARAMS_QTY; i++) {
+        if (i == payload_len || payload_start[i] == MCU_PROTOCOL_PAYLOAD_DELIMITER) {
+            uint16_t param_len = i - start;
+            if (param_len > 0 && param_len < MCU_PROTOCOL_MAX_PARAMS_LENGTH) {
+                memcpy(payload->params[param_idx], &payload_start[start], param_len);
+                payload->params[param_idx][param_len] = '\0';
+                DEBUG_MSG("Param[%d]: \"%s\"", param_idx, payload->params[param_idx]);
+                param_idx++;
+            }
+            start = i + 1;
+        }
+    }
+    payload->params_qty = param_idx;
+}
+
+/**
  * Parses the received message and returns a msg_t structure.
  * 
  * Frame format:
  * <SOF>msgID,payload,CRC16<EOF>
  * 
+ * @param handle Instance handle
  * @param msg_buf Buffer containing the message
  * @param msg_buf_len Length of the message buffer
+ * @return The parsed message structure
  */
-static msg_t parse_msg(uint8_t *msg_buf, uint16_t msg_buf_len)
-{
-    msg_t m = {0};
-    char msg_id_str[MCU_PROTOCOL_MAX_FRAME_LENGTH];
-    char payload_str[MCU_PROTOCOL_MAX_FRAME_LENGTH];
-    char crc16_str[MCU_PROTOCOL_MAX_FRAME_LENGTH];
+static msg_t parse_msg(MCU_PROTOCOL_handle_t handle, uint8_t *msg_buf, uint16_t msg_buf_len) {
+    msg_t msg = {0}; // Initialize all fields to 0
+    
+    // Log the message being parsed
+    msg_buf[msg_buf_len] = '\0'; // Temporary null termination for debugging
+    DEBUG_MSG("Parsing msg: \"%s\"", msg_buf);
 
-    // Get the message type
-    if(msg_buf[0] == MCU_PROTOCOL_SOF_REQUEST)
-    {
-        m.type = MSG_TYPE_REQUEST;
-    }
-    else if(msg_buf[0] == MCU_PROTOCOL_SOF_REQUEST_REPLY)
-    {
-        m.type = MSG_TYPE_REQUEST_REPLY;
-    }
-    else if(msg_buf[0] == MCU_PROTOCOL_SOF_NOTIFICATION)
-    {
-        m.type = MSG_TYPE_NOTIFICATION;
+    // Check minimum length: SOF(1) + msgID(min 1) + comma(1) + CRC(4) + EOF(1)
+    if (msg_buf_len < 8 || msg_buf[msg_buf_len-1] != MCU_PROTOCOL_EOF) {
+        DEBUG_MSG("Invalid frame: too short or missing EOF");
+        msg.too_few_fields = true;
+        return msg;
     }
 
-    // Get the message ID
-    char *p = strchr((char *)&msg_buf[1], MCU_PROTOCOL_DELIMITER);
-    if(p != NULL)
-    {
-        strncpy((char *)msg_id_str, (char *)&msg_buf[1], p - (char *)&msg_buf[1]);
-        msg_id_str[p - (char *)&msg_buf[1]] = '\0';
-        m.msg_id_idx = -1;
-        for(uint8_t i = 0; i < this.instances[0].config.msg_id_list.msg_id_qty; i++)
-        {
-            if(strcmp((char *)msg_id_str, (char *)this.instances[0].config.msg_id_list.msg_ids[i]) == 0)
-            {
-                m.msg_id_idx = i;
+    // Determine message type from SOF
+    msg.type = get_msg_type(msg_buf[0]);
+    DEBUG_MSG("Type: %s", 
+        msg.type == MSG_TYPE_REQUEST ? "request" : 
+        msg.type == MSG_TYPE_REQUEST_REPLY ? "request reply" : "notification");
+
+    // Find delimiters
+    int16_t first_comma = find_next_delimiter(msg_buf, 1, msg_buf_len, MCU_PROTOCOL_DELIMITER);
+    int16_t second_comma = find_next_delimiter(msg_buf, first_comma + 1, msg_buf_len, MCU_PROTOCOL_DELIMITER);
+
+    if (first_comma == -1) {
+        DEBUG_MSG("Missing first delimiter");
+        msg.too_few_fields = true;
+        return msg;
+    }
+
+    // Extract message ID and look up its index
+    uint16_t msg_id_len = first_comma - 1;
+    if (msg_id_len > 0 && msg_id_len <= MCU_PROTOCOL_MAX_MSG_ID_LENGTH) {
+        char msg_id[MCU_PROTOCOL_MAX_MSG_ID_LENGTH + 1] = {0};
+        memcpy(msg_id, &msg_buf[1], msg_id_len);
+        
+        // Look up message ID index in the instance's config
+        msg.msg_id_idx = -1; // Default to invalid
+        for (uint8_t i = 0; i < this.instances[handle].config.msg_id_list.msg_id_qty && 
+             i < MCU_PROTOCOL_MAX_MSG_ID_QTY; i++) {
+            if (strncmp(msg_id, (char*)this.instances[handle].config.msg_id_list.msg_ids[i], 
+                       MCU_PROTOCOL_MAX_MSG_ID_LENGTH) == 0) {
+                msg.msg_id_idx = i;
                 break;
             }
         }
-
-        if(m.msg_id_idx == -1)
-        {            
-            return m;
-        }
-
-        // Get the payload
-        char *p2 = strchr((char *)p + 1, MCU_PROTOCOL_DELIMITER);
-        
-        // if payload exists
-        if(p2 != NULL)
-        {
-            strncpy((char *)payload_str, (char *)p + 1, p2 - p - 1);
-            payload_str[p2 - p - 1] = '\0';
-            m.payload.params_qty = 0;
-            char *p3 = payload_str;
-            char *p4 = strchr((char *)p3, MCU_PROTOCOL_PAYLOAD_DELIMITER);
-            while(p4 != NULL)
-            {
-                strncpy((char *)m.payload.params[m.payload.params_qty], (char *)p3, p4 - p3);
-                m.payload.params[m.payload.params_qty][p4 - p3] = '\0';
-                m.payload.params_qty++;
-                p3 = p4 + 1;
-                p4 = strchr((char *)p3, MCU_PROTOCOL_PAYLOAD_DELIMITER);
-            }
-            strncpy((char *)m.payload.params[m.payload.params_qty], (char *)p3, p2 - p3);
-            m.payload.params[m.payload.params_qty][p2 - p3] = '\0';
-            m.payload.params_qty++;
-        }
-        
-        // Process the CRC
-        strncpy((char *)crc16_str, (char *)p2 + 1, 4);
-        crc16_str[4] = '\0';
-        m.crc16 = (uint16_t)strtol((char *)crc16_str, NULL, 16);
-
-        // Calculate the CRC
-        m.crc16_calc = get_crc16(&msg_buf[1], msg_buf_len - 1 - 1 - 4);
-    }
-    else
-    {
-        m.too_few_fields = true;
+        DEBUG_MSG("Msg ID: \"%s\", idx: %d", msg_id, msg.msg_id_idx);
+    } else {
+        DEBUG_MSG("Invalid msgID length");
+        msg.too_few_fields = true;
+        return msg;
     }
 
-    return m;
+    // Extract payload (could be empty)
+    uint16_t crc_start;
+    if (second_comma != -1) {
+        uint16_t payload_start = first_comma + 1;
+        uint16_t payload_len = second_comma - payload_start;
+        if (payload_len <= MCU_PROTOCOL_MAX_PAYLOAD_LENGTH) {
+            parse_payload(&msg_buf[payload_start], payload_len, &msg.payload);
+        } else {
+            DEBUG_MSG("Payload too long");
+            msg.too_few_fields = true; // Could add a specific error flag if needed
+        }
+        crc_start = second_comma + 1;
+    } else {
+        // No payload case
+        msg.payload.params_qty = 0;
+        crc_start = first_comma + 1;
+    }
+
+    // Extract and validate CRC
+    if (msg_buf_len - crc_start >= 4) {
+        char crc_str[5] = {0};
+        memcpy(crc_str, &msg_buf[crc_start], 4);
+        msg.crc16 = (uint16_t)strtol(crc_str, NULL, 16);
+        // Calculate CRC from msgID to last comma (excluding SOF and EOF)
+        msg.crc16_calc = get_crc16(&msg_buf[1], crc_start - 1);
+        DEBUG_MSG("Received CRC16: %04X, Calculated CRC16: %04X", msg.crc16, msg.crc16_calc);
+    } else {
+        DEBUG_MSG("Invalid CRC length");
+        msg.too_few_fields = true;
+    }
+
+    return msg;
 }
 
 /******************************************************************************
@@ -444,7 +519,7 @@ void MCU_PROTOCOL_tasks()
                         // Process the message
                         DEBUG_MSG("Message received for instance %d", i);
 
-                        this.instances[i].msg = parse_msg(this.instances[i].msg_buf, this.instances[i].msg_buf_len);
+                        this.instances[i].msg = parse_msg(i, this.instances[i].msg_buf, this.instances[i].msg_buf_len);
 
                         if(this.instances[i].msg.too_few_fields)
                         {
@@ -597,7 +672,7 @@ MCU_PROTOCOL_error_code_t MCU_PROTOCOL_assemble_request(
                                             uint8_t *dst)
 {
     // Validate the handle
-    if(handle < 0 && handle >= this.instance_idx)
+    if((handle < 0) || (handle >= this.instance_idx))
     {
         DEBUG_MSG("Invalid handle");
         return MCU_PROTOCOL_TX_ERROR_INVALID_HANDLE;
@@ -632,7 +707,7 @@ MCU_PROTOCOL_error_code_t MCU_PROTOCOL_assemble_request_reply(
                                             uint8_t *dst)
 {
     // Validate the handle
-    if(handle < 0 && handle >= this.instance_idx)
+    if((handle < 0) || (handle >= this.instance_idx))
     {
         DEBUG_MSG("Invalid handle");
         return MCU_PROTOCOL_TX_ERROR_INVALID_HANDLE;
@@ -667,7 +742,7 @@ MCU_PROTOCOL_error_code_t MCU_PROTOCOL_assemble_notification(
                                         uint8_t *dst)
 {
     // Validate the handle
-    if(handle < 0 && handle >= this.instance_idx)
+    if((handle < 0) || (handle >= this.instance_idx))
     {
         DEBUG_MSG("Invalid handle");
         return MCU_PROTOCOL_TX_ERROR_INVALID_HANDLE;
