@@ -1,5 +1,5 @@
 /*******************************************************************************
- * @file        debug.c
+ * @file        dbg.c
  * @brief       This file uses a UART to open a communication channel intended
  *              to be used for debugging purposes using a terminal on the PC.
  * @author      Blas Truden
@@ -7,14 +7,12 @@
  * @version     v1
  * 
  * @copyright   -
- * 
- * @note		This module is part of the BSI BSP core
  ******************************************************************************/
 
 /******************************************************************************
  * Includes
  ******************************************************************************/
-#include "debug.h"
+#include "dbg.h"
 #include "definitions.h"
 
 /******************************************************************************
@@ -326,7 +324,7 @@ static void RX_task()
 /******************************************************************************
  * Public Functions
  ******************************************************************************/
-void DEBUG_init()
+void DBG_init()
 {
 	this.TXinIdx = 0;
 	this.TXoutIdx = 0;
@@ -339,7 +337,7 @@ void DEBUG_init()
 #endif
 }
 
-void DEBUG_tasks()
+void DBG_tasks()
 {
     TX_task();
 #if RX_STREAM_ENABLE == true
@@ -347,10 +345,10 @@ void DEBUG_tasks()
 #endif
 }
 
-void DEBUG_print(char *tag, bool carryRet, char *format, ...)
+void DBG_print(char *tag, bool carryRet, char *format, ...)
 {
-    char buff[MSG_SIZE_MAX*2];
-    char msg[MSG_SIZE_MAX];
+    static char buff[MSG_SIZE_MAX*2];
+    static char msg[MSG_SIZE_MAX];
 
     va_list args;
     va_start (args, format);
@@ -377,13 +375,13 @@ void DEBUG_print(char *tag, bool carryRet, char *format, ...)
     return;
 }
 
-uint8_t DEBUG_getchar()
+uint8_t DBG_getchar()
 {
     return (uint8_t)SERCOM1_USART_ReadByte();
 }
 
 #if RX_STREAM_ENABLE == true
-void DEBUG_ClearRX()
+void DBG_ClearRX()
 {
 	this.RXinIdx = 0;
 	this.RXoutIdx = 0;

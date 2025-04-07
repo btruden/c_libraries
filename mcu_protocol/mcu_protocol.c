@@ -173,13 +173,13 @@ uint16_t get_crc16(uint8_t *msg, size_t len)
   * 
   * @param handle Instance handle
   * @param msg_id_idx Message ID index
-  * @param payload Payload list
+  * @param payload Pointer to the payload list
   * 
   * @return Frame length
   */
 static uint32_t get_frame_length(MCU_PROTOCOL_handle_t handle,
                                 uint8_t msg_id_idx, 
-                                MCU_PROTOCOL_payload_list_t payload)
+                                MCU_PROTOCOL_payload_list_t *payload)
 {
     uint32_t frame_size = 0;
 
@@ -193,9 +193,9 @@ static uint32_t get_frame_length(MCU_PROTOCOL_handle_t handle,
     frame_size++;
 
     // Sum the payload length
-    for(uint8_t i = 0; i < payload.params_qty; i++)
+    for(uint8_t i = 0; i < payload->params_qty; i++)
     {
-        frame_size += strlen((char *)payload.params[i]);
+        frame_size += strlen((char *)payload->params[i]);
         frame_size ++; // Add 1 byte for the parameter separator
     }
     
@@ -216,13 +216,13 @@ static uint32_t get_frame_length(MCU_PROTOCOL_handle_t handle,
  * @param sof Start of frame
  * @param handle Instance handle
  * @param msg_id_idx Message ID index
- * @param payload Payload list
+ * @param payload Pointer to the payload list
  * @param dst Destination buffer
  */
 static void assemble_msg(uint8_t sof, 
                         MCU_PROTOCOL_handle_t handle, 
                         uint8_t msg_id_idx, 
-                        MCU_PROTOCOL_payload_list_t payload,
+                        MCU_PROTOCOL_payload_list_t *payload,
                         uint8_t *dst)
 {
     uint8_t sof_str[2] = {'\0', '\0'};
@@ -245,15 +245,15 @@ static void assemble_msg(uint8_t sof,
     strcat((char *)dst, (char *)delim_str);
     
     // If exists, add the payload
-    if(payload.params_qty > 0)
+    if(payload->params_qty > 0)
     {
-        for(uint8_t i = 0; i < payload.params_qty; i++)
+        for(uint8_t i = 0; i < payload->params_qty; i++)
         {
             // Add the parameter
-            strcat((char *)dst, (char *)payload.params[i]);
+            strcat((char *)dst, (char *)payload->params[i]);
 
             // If it's not the last parameter, add the parameter delimiter
-            if(i < payload.params_qty - 1)
+            if(i < payload->params_qty - 1)
             {
                 strcat((char *)dst, (char *)payload_delim_str);
             }
@@ -668,7 +668,7 @@ MCU_PROTOCOL_error_code_t MCU_PROTOCOL_push_byte(MCU_PROTOCOL_handle_t handle,
 MCU_PROTOCOL_error_code_t MCU_PROTOCOL_assemble_request(
                                             MCU_PROTOCOL_handle_t handle, 
                                             uint8_t msg_id_idx, 
-                                            MCU_PROTOCOL_payload_list_t payload,
+                                            MCU_PROTOCOL_payload_list_t *payload,
                                             uint8_t *dst)
 {
     // Validate the handle
@@ -703,7 +703,7 @@ MCU_PROTOCOL_error_code_t MCU_PROTOCOL_assemble_request(
 MCU_PROTOCOL_error_code_t MCU_PROTOCOL_assemble_request_reply(
                                             MCU_PROTOCOL_handle_t handle, 
                                             uint8_t msg_id_idx, 
-                                            MCU_PROTOCOL_payload_list_t payload,
+                                            MCU_PROTOCOL_payload_list_t *payload,
                                             uint8_t *dst)
 {
     // Validate the handle
@@ -738,7 +738,7 @@ MCU_PROTOCOL_error_code_t MCU_PROTOCOL_assemble_request_reply(
 MCU_PROTOCOL_error_code_t MCU_PROTOCOL_assemble_notification(
                                         MCU_PROTOCOL_handle_t handle, 
                                         uint8_t msg_id_idx, 
-                                        MCU_PROTOCOL_payload_list_t payload,
+                                        MCU_PROTOCOL_payload_list_t *payload,
                                         uint8_t *dst)
 {
     // Validate the handle

@@ -1,5 +1,5 @@
 /***************************************************************************//**
- * @file        debug.h
+ * @file        dbg.h
  * @brief       Provides the necessary interface elements for a successful use 
  *              of the functionality.
  * @author      Blas Truden
@@ -7,12 +7,10 @@
  * @version     v1
  * 
  * @copyright   -
- * 
- * @details     This module is part of the BSI BSP core.
  ******************************************************************************/
 
-#ifndef INC_DEBUG_DEBUG_H_
-#define INC_DEBUG_DEBUG_H_
+#ifndef DBG_H_
+#define DBG_H_
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -37,13 +35,13 @@
  * @brief Initializes the debug module
  *
  */
-void DEBUG_init();
+void DBG_init();
 
 /**
  * @brief main debug task machine
  *
  */
-void DEBUG_tasks();
+void DBG_tasks();
 
 /**
  * Creates a debug string and send it to all the active suscriptos
@@ -53,21 +51,21 @@ void DEBUG_tasks();
  * @param format of the message
  * @param ... variables
  */
-void DEBUG_print(char *tag, bool carryRet, char *format, ...);
+void DBG_print(char *tag, bool carryRet, char *format, ...);
 
 /**
  * @brief Gets a char form the debug stream
  *
  * @return uint8_t '0' if empty
  */
-uint8_t DEBUG_getchar();
+uint8_t DBG_getchar();
 
 #if RX_STREAM_ENABLE == true
 /**
  * @brief Clears the RX stream
  *
  */
-void DEBUG_ClearRX();
+void DBG_ClearRX();
 #endif
 
-#endif /* INC_DEBUG_DEBUG_H_ */
+#endif /* DBG_H_ */

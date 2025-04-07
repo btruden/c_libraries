@@ -252,7 +252,7 @@ MCU_PROTOCOL_error_code_t MCU_PROTOCOL_push_byte(MCU_PROTOCOL_handle_t handle,
  * 
  * @param handle Protocol instance handle
  * @param msg_id_idx Index of the message ID in the list
- * @param payload Payload to send
+ * @param payload Pointer to the payload to send
  * @param dst Destination buffer. Must be >= MCU_PROTOCOL_MAX_FRAME_LENGTH long.
  * 
  * @return Error code
@@ -260,7 +260,7 @@ MCU_PROTOCOL_error_code_t MCU_PROTOCOL_push_byte(MCU_PROTOCOL_handle_t handle,
 MCU_PROTOCOL_error_code_t MCU_PROTOCOL_assemble_request(
                                         MCU_PROTOCOL_handle_t handle, 
                                         uint8_t msg_id_idx, 
-                                        MCU_PROTOCOL_payload_list_t payload,
+                                        MCU_PROTOCOL_payload_list_t *payload,
                                         uint8_t *dst);
 
  /**
@@ -273,7 +273,7 @@ MCU_PROTOCOL_error_code_t MCU_PROTOCOL_assemble_request(
  * 
  * @param handle Protocol instance handle
  * @param msg_id_idx Index of the message ID in the list
- * @param payload Payload to send
+ * @param payload Pointer to the payload to send
  * @param dst Destination buffer. Must be >= MCU_PROTOCOL_MAX_FRAME_LENGTH long.
  * 
  * @return Error code
@@ -281,7 +281,7 @@ MCU_PROTOCOL_error_code_t MCU_PROTOCOL_assemble_request(
 MCU_PROTOCOL_error_code_t MCU_PROTOCOL_assemble_request_reply(
                                         MCU_PROTOCOL_handle_t handle, 
                                         uint8_t msg_id_idx, 
-                                        MCU_PROTOCOL_payload_list_t payload,
+                                        MCU_PROTOCOL_payload_list_t *payload,
                                         uint8_t *dst);
 
 /**
@@ -293,7 +293,7 @@ MCU_PROTOCOL_error_code_t MCU_PROTOCOL_assemble_request_reply(
  * 
  * @param handle Protocol instance handle
  * @param msg_id_idx Index of the message ID in the list
- * @param payload Payload to send
+ * @param payload Pointer to the payload to send
  * @param dst Destination buffer. Must be >= MCU_PROTOCOL_MAX_FRAME_LENGTH long.
  * 
  * @return Error code
@@ -301,7 +301,7 @@ MCU_PROTOCOL_error_code_t MCU_PROTOCOL_assemble_request_reply(
 MCU_PROTOCOL_error_code_t MCU_PROTOCOL_assemble_notification(
                                         MCU_PROTOCOL_handle_t handle, 
                                         uint8_t msg_id_idx, 
-                                        MCU_PROTOCOL_payload_list_t payload,
+                                        MCU_PROTOCOL_payload_list_t *payload,
                                         uint8_t *dst);
 
 #endif /* MCU_PROTOCOL_H_ */

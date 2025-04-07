@@ -50,7 +50,9 @@
 #define STUSB4500_GPIO_SW_GPIO           0x2D
 #define STUSB4500_DEVICE_ID              0x2F
 #define STUSB4500_RX_HEADER_LOW          0x31
+#define STUSB4500_RX_HEADER_HIGH         0x32
 #define STUSB4500_TX_HEADER_LOW          0x51
+#define STUSB4500_TX_HEADER_HIGH         0x52
 #define STUSB4500_DPM_PDO_NUMB           0x70
 #define STUSB4500_DPM_SNK_PDO1_0         0x85
 #define STUSB4500_DPM_SNK_PDO1_1         0x86
@@ -393,7 +395,8 @@ typedef union
  */
 typedef union
 {
-  uint32_t word;
+  uint32_t d32;
+  uint8_t bytes[4];
   struct
   {     
         uint32_t max_operating_current          :       10; //Bits 9..0

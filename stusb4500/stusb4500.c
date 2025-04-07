@@ -23,7 +23,7 @@
 #include "i2c.h"
 
 /******************************************************************************
- * Local Constants
+ * Local Macros
  ******************************************************************************/
 // Debug options
 #define ENABLE_DEBUG        true
@@ -38,173 +38,53 @@
 #define PRINT_LINE(format, ...) DEBUG_print(0, true, format, ##__VA_ARGS__)
 #define PRINT(format, ...) DEBUG_print(0, false, format, ##__VA_ARGS__)
 
-// Time defines
-#define WAIT_REG_LOAD_TIMEOUT               50
-#define CONNECTION_STABILIZATION_TIMEOUT    1000
-#define FULL_STATUS_READ_PERIOD_MS          1000
-#define RESET_TIMEOUT                       100
-
+/******************************************************************************
+ * Local Defines
+ ******************************************************************************/
 // I2C defines
 #define STUSB4500_ADDR                      0b0101000
 
-// Configuration values
-#define STUSB4500_ALERTS_CONFIGURATION       0xFB   // All alerts masked
+ // Time defines
+#define WAIT_REG_LOAD_TIMEOUT               100
+#define FULL_STATUS_READ_PERIOD_MS          1000
+#define FULL_STATUS_READ_ERROR_RESEND_MS    10
+#define HARD_RESET_HOLD_TIME_MS             100
+#define NEGOTIATION_TIME_MS                 100
 
 // -------------------------- Power Profiles ----------------------------------
 #define PDO_QTY                             3
 #define PDO1_VOLTAGE_mV                     5000
-#define PDO1_CURRENT_mA                     200
+#define PDO1_CURRENT_mA                     1500
 #define PDO2_VOLTAGE_mV                     5000
 #define PDO2_CURRENT_mA                     3000
 #define PDO3_VOLTAGE_mV                     20000
 #define PDO3_CURRENT_mA                     3000
 
+/******************************************************************************
+ * Local Constants
+ ******************************************************************************/
 /**
  * Default configuration array containing register address/value pairs
  */
-static uint8_t config_default[] = {
+static const uint8_t config_default[] = {
     // General configuration
+    
     STUSB4500_ALERT_STATUS_1_MASK, 0xFB,    // All alerts masked [default]
     STUSB4500_VBUS_DISCHARGE_CTRL, 0x00,    // VBUS discharge disabled [default]
     STUSB4500_MONITORING_CTRL_0, 0x00,      // SNK_DISC_HIGH: Select a VBUS threshold at 3.5 V [default]
     STUSB4500_MONITORING_CTRL_2, 0xFF,      // VSHIFT_HIGH and VSHIFT_LOW config [default]
-    STUSB4500_RESET_CTRL, 0x01,             // SW_RESET enabled
     STUSB4500_VBUS_DISCHARGE_TIME_CTRL, 0x9C, // DISCHARGE_TIME_TO_0V is  756 ms, DISCHARGE_TIME_TRANSITION is 288 ms [default]
     STUSB4500_VBUS_DISCHARGE_CTRL, 0x00,    // VBUS discharge disabled [default]
     STUSB4500_GPIO_SW_GPIO, 0x00,           // GPIO pin value is Hi-Z [default]
 
     // PDO configuration
     STUSB4500_DPM_PDO_NUMB, PDO_QTY,        // Number of PDOs
-/** 
- * STUSB4500 Fixed Supply PDO Sink Configuration
- * ----------------------------------------------------------------------------
- *
- * The Power Data Object (PDO) is a 32-bit register that defines power 
- * requirements in USB Power Delivery. This explanation details the bit 
- * configuration of the Fixed Supply PDO Sink for the STUSB4500.
- *
- * Bits   | Name                    | Description
- * -------|-------------------------|------------------------------------------
- * 31:30  | PDO Type                | Specifies the type of power source:
- *        |                         |   - 00b: Fixed Supply PDO
- *        |                         |          (fixed voltage and current).
- *        |                         |   - 01b: Battery PDO
- *        |                         |          (specifies energy in Wh).
- *        |                         |   - 10b: Variable Supply PDO (non-battery)
- *        |                         |          (voltage range defined).
- *        |                         |   - 11b: Augmented PDO
- *        |                         |          (e.g., Programmable Power Supply).
- * 29     | Dual-role power         | Set to 1 if the sink device can act as a power 
- *        |                         | source as well; otherwise, set to 0.
- * 28     | Higher capability       | Set to 1 if the device can operate in higher 
- *        |                         | performance states when more power is provided.
- * 27     | Unconstrained power     | Set to 1 if the device is unconstrained by power; 
- *        |                         | otherwise, set to 0.
- * 26     | USB communication       | Set to 1 if the device is capable of USB communication.
- * 25     | Dual-role data          | Set to 1 if the device supports dual-role data 
- *        |                         | (host and device switching); otherwise, set to 0.
- * 24:23  | Fast Role Swap Required | Indicates the USB Type-C fast role swap current:
- *        |                         |   - 00b: Fast role swap not supported (default)
- *        |                         |   - 01b: Default USB power (500mA @ 5V)
- *        |                         |   - 10b: 1.5A @ 5V
- *        |                         |   - 11b: 3.0A @ 5V
- * 22:20  | Reserved                | Must be set to 0 (reserved for future use).
- * 19:10  | Voltage                 | Specifies the desired voltage in 50mV units.
- *        |                         | Example: 100 = 5V, 400 = 20V.
- * 9:0    | Operational current     | Specifies the desired operational current 
- *        |                         | in 10mA units.
- *        |                         | Example: 300 = 3.0A, 100 = 1.0A.
- *
- * **************************************************************************
- */
-
-/**
- * PDO1 CONFIGURATION
- * ----------------------------------------------------------------------------
- * This configuration is used to accept the minimum power required by the device
- * to be able to operate. The device will not be able to charge the battery nor
- * operate the display.
- * ----------------------------------------------------------------------------
- * 
- * Value: 0b 00 0 0 0 1 0 00 000 0001100100 0000010100 [0x04019014]
- * 
- *  - PDO Type: Fixed Supply (00)
- *  - Dual-role power: No (0)
- *  - Higher capability: No (0)
- *  - Unconstrained power: No (0)
- *  - USB communication: Yes (1)
- *  - Dual-role data: No (0)
- *  - Fast Role Swap Required: No (00)
- *  - Reserved: 000
- *  - Voltage: 5V (0001100100 in 50mV units)
- *  - Operational current: 0.2A (0000000010 in 10mA units)
- */
-    //STUSB4500_DPM_SNK_PDO1_0, 0x14,
-    //STUSB4500_DPM_SNK_PDO1_1, 0x90,
-    //STUSB4500_DPM_SNK_PDO1_2, 0x01,
-    //STUSB4500_DPM_SNK_PDO1_3, 0x04,
-
-/**
- * PDO2 CONFIGURATION
- * ----------------------------------------------------------------------------
- * This configuration is used to fully power the device from a 5V source.
- * ----------------------------------------------------------------------------
- * 
- * Value: 0b 00 0 0 0 1 0 00 000 0001100100 0100101100 [0x0401912C]
- * 
- *  - PDO Type: Fixed Supply (00)
- *  - Dual-role power: No (0)
- *  - Higher capability: No (0)
- *  - Unconstrained power: No (0)
- *  - USB communication: Yes (1)
- *  - Dual-role data: No (0)
- *  - Fast Role Swap Required: No (00)
- *  - Reserved: 000
- *  - Voltage: 5V (0001100100 in 50mV units)
- *  - Operational current: 3A (0100101100 in 10mA units)
- */
-    //STUSB4500_DPM_SNK_PDO2_0, 0x2C,
-    //STUSB4500_DPM_SNK_PDO2_1, 0x91,
-    //STUSB4500_DPM_SNK_PDO2_2, 0x01,
-    //STUSB4500_DPM_SNK_PDO2_3, 0x04,
-
-/**
- * PDO3 CONFIGURATION
- * ----------------------------------------------------------------------------
- * This configuration is the higher power capable for 20V capable sources.
- * ----------------------------------------------------------------------------
- * 
- * Value: 0b 00 0 0 0 1 0 00 000 0110010000 0100101100 [0x0406412C]
- * 
- *  - PDO Type: Fixed Supply (00)
- *  - Dual-role power: No (0)
- *  - Higher capability: No (0)
- *  - Unconstrained power: No (0)
- *  - USB communication: Yes (1)
- *  - Dual-role data: No (0)
- *  - Fast Role Swap Required: No (00)
- *  - Reserved: 000
- *  - Voltage: 20V (0110010000 in 50mV units)
- *  - Operational current: 3A (0100101100 in 10mA units)
- */
-    //STUSB4500_DPM_SNK_PDO3_0, 0x2C,
-    //STUSB4500_DPM_SNK_PDO3_1, 0x41,
-    //STUSB4500_DPM_SNK_PDO3_2, 0x06,
-    //STUSB4500_DPM_SNK_PDO3_3, 0x04,
-};
-
-/**
- * Reset command address/value pair array
- */
-static uint8_t reset_cmd[] = {
-    STUSB4500_TX_HEADER_LOW, 0x0D,      // Reset command value
-    STUSB4500_PD_COMMAND_CTRL, 0x26,    // Send command
 };
 
 /**
  * Default PDO configuration
  */
-static STUSB4500_SNK_PDO_t pdo_default = {
+static const STUSB4500_SNK_PDO_t pdo_default = {
     .fix.Fixed_Supply = 0,
     .fix.Dual_Role_Power = 0,
     .fix.Higher_Capability = 0,
@@ -215,6 +95,17 @@ static STUSB4500_SNK_PDO_t pdo_default = {
     .fix.Reserved_22_20 = 0,
     .fix.Voltage = PDO1_VOLTAGE_mV/50,
     .fix.Operationnal_Current = PDO1_CURRENT_mA/10,
+};
+
+/**
+ * This command sends a "soft reset" message to the source. This is used to
+ * re negotiate the power contract after a configuration is done.
+ */
+static const uint8_t soft_reset_msg_to_src[] = 
+{
+    STUSB4500_TX_HEADER_LOW, 0x0D,
+    STUSB4500_TX_HEADER_HIGH, 0x00,
+    STUSB4500_PD_COMMAND_CTRL, 0x26
 };
 
 /******************************************************************************
@@ -228,8 +119,7 @@ typedef enum
     STATE_INIT = 0,
     STATE_CONFIGURING,
     STATE_USB_DISCONNECTED,
-    STATE_USB_WAIT_CONNECTION_STABLE,
-    STATE_GETTING_POWER_PROFILE_RESULT,
+    STATE_USB_WAITING_NEGOTIATION,
     STATE_USB_CONNECTED,
 }state_t;
 
@@ -242,10 +132,11 @@ typedef enum
 static struct local_data
 {
     state_t state;
-    STUSB4500_SNK_PDO_t pdo[PDO_QTY];           // Stores the PDO configured values
-    STUSB4500_RDO_t rdo;                        // Stores the RDO value
-    STUSB4500_full_status_t status;             // Stores the status of the STUSB4500
-    uint32_t tmr;
+    STUSB4500_SNK_PDO_t pdo[PDO_QTY];       // Stores the PDO configured values
+    STUSB4500_RDO_t rdo;                    // Stores the RDO value
+    STUSB4500_full_status_t status;         // Stores the status of the STUSB4500
+    uint32_t tmr;                           // General purpose timer
+    uint32_t status_tmr;                    // Timer for reading chip status
 }this;
 
 /******************************************************************************
@@ -276,7 +167,7 @@ static bool timer_out()
  * 
  * @return true if the registers were read
  */
-static bool write_multiple_registers(uint8_t *data, uint8_t length, bool init)
+static bool write_multiple_registers(const uint8_t *data, uint8_t length, bool init)
 {
     bool ret = false;
     static uint8_t *tx_data;
@@ -297,7 +188,7 @@ static bool write_multiple_registers(uint8_t *data, uint8_t length, bool init)
     switch (wrState)
     {
         case WRSTATE_INIT:
-            tx_data = data;
+            tx_data = (uint8_t *)data;
             total_regs = length;
             cnt = 0;
             t.address = STUSB4500_ADDR;
@@ -372,7 +263,7 @@ static bool write_multiple_registers(uint8_t *data, uint8_t length, bool init)
  * 
  * @return true if the registers were read
  */
-static bool write_consecutive_registers(uint8_t addr, uint8_t *data, uint8_t length, bool init)
+static bool write_consecutive_registers(uint8_t addr, const uint8_t *data, uint8_t length, bool init)
 {
     bool ret = false;
     static uint8_t tx_data[264];
@@ -643,7 +534,7 @@ static bool set_pdo(uint8_t pdo_id, uint16_t mV, uint16_t mA, bool init)
         case SET_PDO_WRITING:
             if(write_consecutive_registers(STUSB4500_DPM_SNK_PDO1_0 + (pdo_id*4),pdo.d8,sizeof(pdo),false))
             {
-                DEBUG_MSG("PDO %d set to %08x", pdo_id, pdo.d32);
+                DEBUG_MSG("PDO %d set to %08x", pdo_id+1, pdo.d32);
                 DEBUG_MSG("\t-current: %d mA", pdo.fix.Operationnal_Current * 10);
                 DEBUG_MSG("\t-voltage: %d mV", pdo.fix.Voltage * 50);
                 setPDOstate = SET_PDO_INIT;
@@ -672,6 +563,7 @@ static bool configure(bool init)
     static enum
     {
         CONFSTATE_INIT = 0,
+        CONFSTATE_HARD_RESET,
         CONFSTATE_WAIT_STARTUP_REGS_LOADING,
         CONFSTATE_READ_ID,
         CONFSTATE_READING_EXISTING_SNK_PDOs,
@@ -680,8 +572,7 @@ static bool configure(bool init)
         CONFSTATE_SETTING_PDO1,
         CONFSTATE_SETTING_PDO2,
         CONFSTATE_SETTING_PDO3,
-        CONFSTATE_RESETTING,
-        CONFSTATE_RESET_WAIT,
+        CONFSTATE_SOFT_RESET,
         CONFSTATE_VERIFY_PDO_CONFIGS,
         CONFSTATE_ERROR
     }confState = CONFSTATE_INIT;
@@ -694,8 +585,18 @@ static bool configure(bool init)
     switch (confState)  
     {
         case CONFSTATE_INIT:
-            timer_set(WAIT_REG_LOAD_TIMEOUT);
-            confState = CONFSTATE_WAIT_STARTUP_REGS_LOADING;
+            BOARD_usb_pd_reset_assert();
+            timer_set(HARD_RESET_HOLD_TIME_MS);
+            confState = CONFSTATE_HARD_RESET;
+            break;
+        
+        case CONFSTATE_HARD_RESET:
+            if(timer_out())
+            {
+                BOARD_usb_pd_reset_release();
+                timer_set(WAIT_REG_LOAD_TIMEOUT);
+                confState = CONFSTATE_WAIT_STARTUP_REGS_LOADING;
+            }
             break;
         
         case CONFSTATE_WAIT_STARTUP_REGS_LOADING:
@@ -762,10 +663,8 @@ static bool configure(bool init)
         case CONFSTATE_WRITING_CONFIG:
             if(write_multiple_registers(NULL, 0, false))
             {
-                DEBUG_MSG("Configuration done. Setting PDO1...");
-                
+                DEBUG_MSG("Configuration done. Setting PDO1: %d mV, %d mA", PDO1_VOLTAGE_mV, PDO1_CURRENT_mA);                
                 set_pdo(0, PDO1_VOLTAGE_mV, PDO1_CURRENT_mA, true);
-
                 confState = CONFSTATE_SETTING_PDO1;
             }
             break;
@@ -773,7 +672,7 @@ static bool configure(bool init)
         case CONFSTATE_SETTING_PDO1:
             if(set_pdo(0, PDO1_VOLTAGE_mV, PDO1_CURRENT_mA, false))
             {
-                DEBUG_MSG("PDO1 set. Setting PDO2...");
+                DEBUG_MSG("PDO1 set. Setting PDO2: %d mV, %d mA", PDO2_VOLTAGE_mV, PDO2_CURRENT_mA);
                 set_pdo(1, PDO2_VOLTAGE_mV, PDO2_CURRENT_mA, true);
                 confState = CONFSTATE_SETTING_PDO2;
             }
@@ -782,7 +681,7 @@ static bool configure(bool init)
         case CONFSTATE_SETTING_PDO2:
             if(set_pdo(1, PDO2_VOLTAGE_mV, PDO2_CURRENT_mA, false))
             {
-                DEBUG_MSG("PDO2 set. Setting PDO3...");
+                DEBUG_MSG("PDO2 set. Setting PDO3: %d mV, %d mA", PDO3_VOLTAGE_mV, PDO3_CURRENT_mA);
                 set_pdo(2, PDO3_VOLTAGE_mV, PDO3_CURRENT_mA, true);
                 confState = CONFSTATE_SETTING_PDO3;
             }
@@ -791,30 +690,24 @@ static bool configure(bool init)
         case CONFSTATE_SETTING_PDO3:
             if(set_pdo(2, PDO3_VOLTAGE_mV, PDO3_CURRENT_mA, false))
             {
-                DEBUG_MSG("PDO3 set. Resetting STUSB4500...");
-                write_multiple_registers(reset_cmd, sizeof(reset_cmd)/2, true);
-                confState = CONFSTATE_RESETTING;
+                // Sending a soft reset message to the source to trigger a new power negotiation
+                // in the case the power source is already connected.
+                DEBUG_MSG("PDO3 set. Sending Soft Reset msg to the source");
+                write_multiple_registers(soft_reset_msg_to_src, sizeof(soft_reset_msg_to_src)/2, true);
+                confState = CONFSTATE_SOFT_RESET;
             }
             break;
 
-        case CONFSTATE_RESETTING:
-            if(write_multiple_registers(NULL, 0, false))
+        case CONFSTATE_SOFT_RESET:
+            if(write_multiple_registers(soft_reset_msg_to_src, sizeof(soft_reset_msg_to_src)/2, false))
             {
-                DEBUG_MSG("Reset command send");
-                timer_set(RESET_TIMEOUT);
-                confState = CONFSTATE_RESET_WAIT;
-            }
-            break;
-        
-        case CONFSTATE_RESET_WAIT:
-            if(timer_out())
-            {
-                DEBUG_MSG("Reset done. Verifying PDO configurations...");
+                DEBUG_MSG("Soft reset msg sent to the source. Verifying PDO configs...");
                 read_consecutive_registers(rx_buff, STUSB4500_DPM_SNK_PDO1_0, 12, true);
                 confState = CONFSTATE_VERIFY_PDO_CONFIGS;
             }
             break;
 
+        // Verify that the PDO configurations were correctly set
         case CONFSTATE_VERIFY_PDO_CONFIGS:
             if(read_consecutive_registers(rx_buff, STUSB4500_DPM_SNK_PDO1_0, 12, false))
             {
@@ -851,61 +744,224 @@ static bool configure(bool init)
 }
 
 /**
- * Reads the power negotiation result after USB has been attached. This function
- * must be called at least 500ms after the USB has been attached.
+ * When called, it'll print the values of all the status plus RDO registers of 
+ * the STUSB4500. It's usefull to call this function periodically to check the
+ * status of the STUSB4500 during initial debugging.
  * 
- * @param init true if the function is called for the first time
- * @param rdo pointer to the RDO structure where the result will be stored
- * 
- * @return true if the power negotiation result was read
+ * @param full_details if true, it'll show the bit details of each status 
+ *                      register.
  */
-static bool read_power_negotation_result(bool init, STUSB4500_RDO_t *rdo)
+static void status_print(bool full_details)
 {
-    bool ret = false;
-    static uint8_t rx_buff[8];
-
-    static enum
+#if ENABLE_DEBUG == true
+    static uint32_t cnt = 0;
+    DEBUG_MSG("----------------------------------------- STATUS -----------------------------------------");
+    DEBUG_MSG("#%d", cnt++);
+    // ALERT_STATUS_1
+    DEBUG_MSG("\t* ALERT_STATUS_1: 0x%02x", this.status.status_regs.alert_status_1.byte);
+    if(full_details)
     {
-        RDO_STATE_INIT = 0,
-        RDO_STATE_READING,
-    }rdoState = RDO_STATE_INIT;
-
-    if(init)
-    {
-        rdoState = RDO_STATE_INIT;
+        if(this.status.status_regs.alert_status_1.bits.prt_status_al)
+        {
+            DEBUG_MSG("\t\t- PRT_STATUS_AL -> alert triggered");
+        }
+        if(this.status.status_regs.alert_status_1.bits.cc_hw_fault_status_al)
+        {
+            DEBUG_MSG("\t\t- CC_HW_FAULT_STATUS_AL -> alert triggered");
+        }
+        if(this.status.status_regs.alert_status_1.bits.typec_monitoring_status_al)
+        {
+            DEBUG_MSG("\t\t- TYPEC_MONITORING_STATUS_AL -> alert triggered");
+        }
+        if(this.status.status_regs.alert_status_1.bits.port_status_al)
+        {
+            DEBUG_MSG("\t\t- PORT_STATUS_AL -> alert triggered");
+        }
     }
 
-    switch(rdoState)
+    // ALERT_STATUS_1_MASK
+    DEBUG_MSG("\t* ALERT_STATUS_1_MASK: 0x%02x", this.status.status_regs.alert_status_1_mask.byte);
+    if(full_details)
     {
-        case RDO_STATE_INIT:
-            read_consecutive_registers(rx_buff, STUSB4500_RDO_REG_STATUS_0, 4, true);
-            rdoState = RDO_STATE_READING;
-            break;
-        
-        case RDO_STATE_READING:
-            if(read_consecutive_registers(rx_buff, STUSB4500_RDO_REG_STATUS_0, 4, false))
-            {
-                memcpy(rdo, rx_buff, sizeof(STUSB4500_RDO_t));
-                DEBUG_MSG("RDO: 0x%08x", rdo->word);
-                DEBUG_MSG("\t-max_operating_current: %d mA", rdo->bits.max_operating_current * 10);
-                DEBUG_MSG("\t-operating_current: %d mA", rdo->bits.operating_current * 10);
-                DEBUG_MSG("\t-unchecked_extended_msg_supported: %d", rdo->bits.unchunked_ext_msg_supported);
-                DEBUG_MSG("\t-no_usb_suspend: %d", rdo->bits.no_usb_suspend);
-                DEBUG_MSG("\t-usb_comm_capable: %d", rdo->bits.usb_comm_capable);
-                DEBUG_MSG("\t-capability_mismatch: %d", rdo->bits.capability_mismatch);
-                DEBUG_MSG("\t-give_back_flag: %d", rdo->bits.give_back_flag);
-                DEBUG_MSG("\t-object_position: %d", rdo->bits.object_position);
-
-                rdoState = RDO_STATE_INIT;
-                ret = true;
-            }
-            break;
-        
-        default:
-            break;
+        DEBUG_MSG("\t\t- PRT_STATUS_AL_MASK -> %s", (this.status.status_regs.alert_status_1_mask.bits.prt_status_al_msk) ? "masked" : "unmasked");
+        DEBUG_MSG("\t\t- CC_FAULT_STATUS_AL_MASK -> %s", (this.status.status_regs.alert_status_1_mask.bits.cc_hw_fault_status_al_msk) ? "masked" : "unmasked");
+        DEBUG_MSG("\t\t- TYPEC_MONITORING_STATUS_MASK -> %s", (this.status.status_regs.alert_status_1_mask.bits.typec_monitoring_status_al_msk) ? "masked" : "unmasked");
+        DEBUG_MSG("\t\t- PORT_STATUS_AL_MASK -> %s", (this.status.status_regs.alert_status_1_mask.bits.port_status_al_msk) ? "masked" : "unmasked");        
     }
 
-    return ret;
+    // PORT_STATUS_0
+    DEBUG_MSG("\t* PORT_STATUS_0: 0x%02x", this.status.status_regs.port_status_0.byte);
+    if(full_details)
+    {
+        if(this.status.status_regs.port_status_0.bits.attach_transition)
+        {
+            DEBUG_MSG("\t\t- ATTACH -> attach transition detected");
+        }
+    }
+
+    // PORT_STATUS_1
+    DEBUG_MSG("\t* PORT_STATUS_1: 0x%02x", this.status.status_regs.port_status_1.byte);
+    if(full_details)
+    {
+        DEBUG_MSG("\t\t- ATTACH -> %s", this.status.status_regs.port_status_1.bits.attach ? "attached" : "detached");
+        DEBUG_MSG("\t\t- DATA_MODE -> %s", this.status.status_regs.port_status_1.bits.data_mode ? "UFP" : "[reserved]");
+        DEBUG_MSG("\t\t- POWER_MODE -> %s", this.status.status_regs.port_status_1.bits.pwr_mode ? "[reserved]" : " device is sinking power");
+        switch(this.status.status_regs.port_status_1.bits.attached_device)
+        {
+            case 0: DEBUG_MSG("\t\t- ATTACHED_DEVICE -> No device connected"); break;
+            case 1: DEBUG_MSG("\t\t- ATTACHED_DEVICE -> Sink device connected"); break;
+            case 3: DEBUG_MSG("\t\t- ATTACHED_DEVICE ->  Debug accessory device connected"); break; 
+            case 2:
+            case 4:
+            case 5: DEBUG_MSG("\t\t- ATTACHED_DEVICE -> [reserved]"); break;
+            default: break;
+        }
+    }
+
+    // TYPEC_MONITORING_STATUS_0
+    DEBUG_MSG("\t* TYPEC_MONITORING_STATUS_0: 0x%02x", this.status.status_regs.typec_monitoring_status_0.byte);
+    if(full_details)
+    {
+        if(this.status.status_regs.typec_monitoring_status_0.bits.vbus_valid_snk_trans)
+        {
+            DEBUG_MSG("\t\t- VBUS_VALID_SNK_TRANS -> Transition detected on VBUS_VALID_SNK bit");
+        }
+        if(this.status.status_regs.typec_monitoring_status_0.bits.vbus_vsafe0v_trans)
+        {
+            DEBUG_MSG("\t\t- VBUS_VSAFE0V_TRANS -> Transition detected on VBUS_VSAFE0V bit");
+        }
+        if(this.status.status_regs.typec_monitoring_status_0.bits.vbus_ready_trans)
+        {
+            DEBUG_MSG("\t\t- VBUS_READY_TRANS -> Transition detected on VBUS_READY bit");
+        }
+        DEBUG_MSG("\t\t- VBUS_LOW_STATUS -> %s", this.status.status_regs.typec_monitoring_status_0.bits.vbus_low_status ? "VBUS below low threshold" : "VBUS above low threshold");
+        DEBUG_MSG("\t\t- VBUS_HIGH_STATUS -> %s", this.status.status_regs.typec_monitoring_status_0.bits.vbus_high_status ? "VBUS above high threshold" : "VBUS below high threshold");    
+    }
+
+    // TYPEC_MONITORING_STATUS_1
+    DEBUG_MSG("\t* TYPEC_MONITORING_STATUS_1: 0x%02x", this.status.status_regs.typec_monitoring_status_1.byte);
+    if(full_details)
+    {
+        DEBUG_MSG("\t\t- VBUS_VALID_SNK -> %s", this.status.status_regs.typec_monitoring_status_1.bits.vbus_valid_snk ? "VBUS is higher than 1.9 V or 3.5 V" : "VBUS is lower than 1.9 V or 3.5 V");
+        DEBUG_MSG("\t\t- VBUS_VSAFE0V -> %s", this.status.status_regs.typec_monitoring_status_1.bits.vbus_vsafe0v ? "VBUS is lower than 0.8 V" : "VBUS is higher than 0.8 V");
+        DEBUG_MSG("\t\t- VBUS_READY -> %s", this.status.status_regs.typec_monitoring_status_1.bits.vbus_ready ? "VBUS connected" : " VBUS disconnected");    
+    }
+
+    // CC_STATUS
+    DEBUG_MSG("\t* CC_STATUS: 0x%02x", this.status.status_regs.cc_status.byte);
+    if(full_details)
+    {
+        switch(this.status.status_regs.cc_status.bits.cc1_state)
+        {
+            case 0: DEBUG_MSG("\t\t- CC1_STATE -> [reserved]"); break;
+            case 1: DEBUG_MSG("\t\t- CC1_STATE -> SNK.Default"); break;
+            case 2: DEBUG_MSG("\t\t- CC1_STATE -> SNK.Power1.5"); break;
+            case 3: DEBUG_MSG("\t\t- CC1_STATE -> SNK.Power3.0"); break;
+            default: break;
+        }
+        switch(this.status.status_regs.cc_status.bits.cc2_state)
+        {
+            case 0: DEBUG_MSG("\t\t- CC2_STATE -> [reserved]"); break;
+            case 1: DEBUG_MSG("\t\t- CC2_STATE -> SNK.Default"); break;
+            case 2: DEBUG_MSG("\t\t- CC2_STATE -> SNK.Power1.5"); break;
+            case 3: DEBUG_MSG("\t\t- CC2_STATE -> SNK.Power3.0"); break;
+            default: break;
+        }
+        DEBUG_MSG("\t\t- CONNECT_RESULT -> %s", this.status.status_regs.cc_status.bits.connect_result ? "The device is presenting Rd" : "[reserved]");
+        DEBUG_MSG("\t\t- LOOKING_4_CONNECTION -> %s", this.status.status_regs.cc_status.bits.looking_for_connection ? " looking 4 connection" : "NOT looking 4 connection");    
+    }
+
+    // CC_HW_FAULT_STATUS_0
+    DEBUG_MSG("\t* CC_HW_FAULT_STATUS_0: 0x%02x", this.status.status_regs.cc_hw_fault_status_0.byte);
+    if(full_details)
+    {
+        if(this.status.status_regs.cc_hw_fault_status_0.bits.vpu_valid_trans)
+        {
+            DEBUG_MSG("\t\t- VPU_VALID_TRANS -> Transition occurred on VPU_VALID bit");
+        }   
+        if(this.status.status_regs.cc_hw_fault_status_0.bits.vpu_ovp_fault_trans)
+        {
+            DEBUG_MSG("\t\t- VPU_OVP_FAULT_TRANS -> Transition occurred on VPU_OVP_FAULT bit");
+        }    
+    }
+
+    // CC_HW_FAULT_STATUS_1
+    DEBUG_MSG("\t* CC_HW_FAULT_STATUS_1: 0x%02x", this.status.status_regs.cc_hw_fault_status_1.byte);
+    if(full_details)
+    {
+        DEBUG_MSG("\t\t- VBUS_DISCH_FAULT -> %s", this.status.status_regs.cc_hw_fault_status_1.bits.vbus_disch_fault ? "VBUS discharge issue has occurred" : "No VBUS discharge issue");
+        DEBUG_MSG("\t\t- VPU_VALID -> %s", this.status.status_regs.cc_hw_fault_status_1.bits.vpu_valid ? 
+            " CC pins pull-up voltage is above UVLO threshold of 2.8 V when in pull-up mode" : 
+            "CC pins pull-up voltage is below UVLO threshold of 2.8 V when in pull-up mode");
+        DEBUG_MSG("\t\t- VPU_OVP_FAULT -> %s", this.status.status_regs.cc_hw_fault_status_1.bits.vpu_ovp_fault ? 
+            "Overvoltage condition has occurred on CC pins when in pull-up mode" : 
+            "No overvoltage condition on CC pins when in pull-up mode");    
+    }
+    
+    // PD_TYPEC_STATUS
+    DEBUG_MSG("\t* PD_TYPEC_STATUS: 0x%02x", this.status.status_regs.pd_typec_status.byte);
+    if(full_details)
+    {
+        switch(this.status.status_regs.pd_typec_status.bits.pd_typec_hand_check)
+        {
+            case 0: DEBUG_MSG("\t\t- PD_TYPEC_HAND_CHECK -> Cleared"); break;
+            case 8: DEBUG_MSG("\t\t- PD_TYPEC_HAND_CHECK -> PD_HARD_RESET_COMPLETE_ACK"); break;
+            case 14: DEBUG_MSG("\t\t- PD_TYPEC_HAND_CHECK -> PD_HARD_RESET_RECEIVED_ACK"); break;
+            case 15: DEBUG_MSG("\t\t- PD_TYPEC_HAND_CHECK -> PD_HARD_RESET_SEND_ACK"); break;
+            default: break;
+        }    
+    }
+
+    // TYPEC_STATUS
+    DEBUG_MSG("\t* TYPEC_STATUS: 0x%02x", this.status.status_regs.typec_status.byte);
+    if(full_details)
+    {
+        switch(this.status.status_regs.typec_status.bits.typec_fsm_state)
+        {
+            case 0: DEBUG_MSG("\t\t- TYPEC_FSM_STATE -> UNATTACHED_SNK"); break;
+            case 1: DEBUG_MSG("\t\t- TYPEC_FSM_STATE -> ATTACHWAIT_SNK"); break;
+            case 2: DEBUG_MSG("\t\t- TYPEC_FSM_STATE -> ATTACHED_SNK"); break;
+            case 3: DEBUG_MSG("\t\t- TYPEC_FSM_STATE -> DEBUGACCESSORY_SNK"); break;
+            case 12: DEBUG_MSG("\t\t- TYPEC_FSM_STATE -> TRY_SRC"); break;
+            case 13: DEBUG_MSG("\t\t- TYPEC_FSM_STATE -> UNATTACHED_ACCESSORY"); break;
+            case 14: DEBUG_MSG("\t\t- TYPEC_FSM_STATE -> ATTACHWAIT_ACCESSORY"); break;
+            case 19: DEBUG_MSG("\t\t- TYPEC_FSM_STATE -> TYPEC_ERRORRECOVERY"); break;
+            default: DEBUG_MSG("\t\t- TYPEC_FSM_STATE -> [reserved]"); break;
+        }    
+    }
+
+    // PRT_STATUS
+    DEBUG_MSG("\t* PRT_STATUS: 0x%02x", this.status.status_regs.prt_status.byte);
+    if(full_details)
+    {
+        DEBUG_MSG("\t\t- PRL_HW_RST_RECEIVED -> %s", this.status.status_regs.prt_status.bits.prl_hw_rst_received ? 
+            " Interrupt for a PD hardware reset request coming from RX" : 
+            "Cleared by I2C maste3");
+        DEBUG_MSG("\t\t- PRL_MSG_RECEIVED -> %s", this.status.status_regs.prt_status.bits.prl_msg_received ? 
+            "Interrupt for protocol layer message received" :
+            "Cleared by I2C master");    
+    }
+    
+    DEBUG_MSG("-------------------------------------- RDO STATUS ----------------------------------------");
+    DEBUG_MSG("\t* RDO_REG_STATUS_0_3: 0x%08x", this.rdo.d32);
+    if(full_details)
+    {
+        DEBUG_MSG("\t\t- max_operating_current -> %d mA", this.rdo.bits.max_operating_current * 10);
+        DEBUG_MSG("\t\t- operating_current -> %d mA", this.rdo.bits.operating_current * 10);
+        DEBUG_MSG("\t\t- unchunked_ext_msg_supported -> %d", this.rdo.bits.unchunked_ext_msg_supported);
+        DEBUG_MSG("\t\t- no_usb_suspend -> %d", this.rdo.bits.no_usb_suspend);
+        DEBUG_MSG("\t\t- usb_comm_capable -> %d", this.rdo.bits.usb_comm_capable);
+        DEBUG_MSG("\t\t- capability_mismatch -> %d", this.rdo.bits.capability_mismatch);
+        DEBUG_MSG("\t\t- give_back_flag -> %d", this.rdo.bits.give_back_flag);
+        DEBUG_MSG("\t\t- object_position -> %d (%s)", this.rdo.bits.object_position, 
+            (this.rdo.bits.object_position > 0)? "USB PD mode" : "USB C mode (NO USB PD mode!!)");
+    }
+    DEBUG_MSG("------------------------------------------------------------------------------------------");
+    
+    DEBUG_MSG(""); 
+    DEBUG_MSG(""); 
+
+#endif
 }
 
 /**
@@ -915,11 +971,14 @@ static bool read_power_negotation_result(bool init, STUSB4500_RDO_t *rdo)
  */
 static void status_monitor(bool init)
 {
+    static I2C_transaction_t t;
+    static uint8_t tx_buff[1];
+
     static enum
     {
         STATUS_STATE_INIT = 0,
-        STATUS_STATE_READING, 
-        STATUS_STATE_WAIT,
+        STATUS_STATE_READING_STATUS, 
+        STATUS_STATE_READING_RDO
     }statusState = STATUS_STATE_INIT;
 
     if(init)
@@ -930,38 +989,83 @@ static void status_monitor(bool init)
     switch(statusState)
     {
         case STATUS_STATE_INIT:
-            read_consecutive_registers(this.status.bytes, STUSB4500_ALERT_STATUS_1, sizeof(this.status), true);
-            timer_set(FULL_STATUS_READ_PERIOD_MS);
-            statusState = STATUS_STATE_READING;
+            if(!this.status_tmr)
+            {
+                // Clear the status structure
+                memset(&this.status, 0, sizeof(this.status));  
+
+                tx_buff[0] = STUSB4500_ALERT_STATUS_1;
+
+                t.address = STUSB4500_ADDR;
+                t.rx_data = this.status.bytes;
+                t.rx_length = sizeof(this.status);
+                t.tx_data = tx_buff;
+                t.tx_length = 1;
+                t.type = I2C_TRANSACTION_WRITE_READ;
+
+                if(I2C_add_transaction(&t))
+                {
+                    this.status_tmr = FULL_STATUS_READ_PERIOD_MS;
+                    statusState = STATUS_STATE_READING_STATUS;
+                }            
+                else
+                {
+                    this.status_tmr = FULL_STATUS_READ_ERROR_RESEND_MS;
+                    DEBUG_MSG("status_monitor(): Error adding transaction");
+                }
+            }
+            
             break;
 
-        case STATUS_STATE_READING:
-            if(read_consecutive_registers(this.status.bytes, STUSB4500_ALERT_STATUS_1, sizeof(this.status), false))
+        case STATUS_STATE_READING_STATUS:
+            switch(t.status)
             {
-                DEBUG_MSG("\tFULL STATUS:");
-                DEBUG_MSG("\t\t-ALERT_STATUS_1: 0x%02x", this.status.status_regs.alert_status_1);
-                DEBUG_MSG("\t\t-ALERT_STATUS_1_MASK: 0x%02x", this.status.status_regs.alert_status_1_mask);
-                DEBUG_MSG("\t\t-PORT_STATUS_0: 0x%02x", this.status.status_regs.port_status_0);
-                DEBUG_MSG("\t\t-PORT_STATUS_1: 0x%02x", this.status.status_regs.port_status_1);
-                DEBUG_MSG("\t\t-TYPEC_MONITORING_STATUS_0: 0x%02x", this.status.status_regs.typec_monitoring_status_0);
-                DEBUG_MSG("\t\t-TYPEC_MONITORING_STATUS_1: 0x%02x", this.status.status_regs.typec_monitoring_status_1);
-                DEBUG_MSG("\t\t-CC_STATUS: 0x%02x", this.status.status_regs.cc_status);
-                DEBUG_MSG("\t\t-CC_HW_FAULT_STATUS_0: 0x%02x", this.status.status_regs.cc_hw_fault_status_0);
-                DEBUG_MSG("\t\t-CC_HW_FAULT_STATUS_1: 0x%02x", this.status.status_regs.cc_hw_fault_status_1);
-                DEBUG_MSG("\t\t-PD_TYPEC_STATUS: 0x%02x", this.status.status_regs.pd_typec_status);
-                DEBUG_MSG("\t\t-TYPEC_STATUS: 0x%02x", this.status.status_regs.typec_status);
-                DEBUG_MSG("\t\t-PRT_STATUS: 0x%02x", this.status.status_regs.prt_status);
+                case I2C_TRANSACTION_STATUS_DONE:
+                    // Prepare the I2C for RDO reading
+                    tx_buff[0] = STUSB4500_RDO_REG_STATUS_0;
+                    t.rx_data = this.rdo.bytes;
+                    t.rx_length = sizeof(this.rdo);
 
-                statusState = STATUS_STATE_WAIT;
+                    if(I2C_add_transaction(&t))
+                    {
+                        statusState = STATUS_STATE_READING_RDO;
+                    }
+                    else
+                    {
+                        this.status_tmr = FULL_STATUS_READ_ERROR_RESEND_MS;
+                        statusState = STATUS_STATE_INIT;
+                        DEBUG_MSG("status_monitor(): Error adding transaction");
+                    }
+
+                    statusState = STATUS_STATE_READING_RDO;
+                    break;
+                
+                case I2C_TRANSACTION_STATUS_ERROR:
+                    this.status_tmr = FULL_STATUS_READ_ERROR_RESEND_MS;
+                    DEBUG_MSG("status_monitor(): Error reading status registers");
+                    statusState = STATUS_STATE_INIT;
+                    break;
+                
+                default:
+                    break;
             }
             break;
 
-        case STATUS_STATE_WAIT:
-            if(timer_out())
+        case STATUS_STATE_READING_RDO:
+            switch(t.status)
             {
-                read_consecutive_registers(this.status.bytes, STUSB4500_ALERT_STATUS_1, sizeof(this.status), true);
-                timer_set(FULL_STATUS_READ_PERIOD_MS);
-                statusState = STATUS_STATE_READING;
+                case I2C_TRANSACTION_STATUS_DONE:
+                    statusState = STATUS_STATE_INIT;
+                    break;
+                
+                case I2C_TRANSACTION_STATUS_ERROR:
+                    this.status_tmr = FULL_STATUS_READ_ERROR_RESEND_MS;
+                    statusState = STATUS_STATE_INIT;
+                    DEBUG_MSG("status_monitor(): Error reading RDO registers");
+                    break;
+                
+                default:
+                    break;
             }
             break;
 
@@ -978,8 +1082,23 @@ static void status_monitor(bool init)
  */
 static void tick_callback()
 {
+    static uint16_t cnt = 1000;
+
     if(this.tmr)
         this.tmr--;
+
+    if(this.status_tmr)
+        this.status_tmr--;
+
+    if(cnt)
+    {
+        cnt--;
+    }
+    else
+    {
+        cnt = 1000;
+        status_print(true);
+    }
 }
 
 /******************************************************************************
@@ -992,10 +1111,15 @@ void STUSB4500_init()
     memset(&this.rdo, 0, sizeof(this.rdo));
     memset(&this.status, 0, sizeof(this.status));
     this.state = STATE_INIT;
+    this.tmr = 0;
+    this.status_tmr = 0;
+    status_monitor(true);
 }
 
 void STUSB4500_tasks()
 {     
+    status_monitor(false);
+
     switch (this.state)
     {
         case STATE_INIT:
@@ -1009,42 +1133,28 @@ void STUSB4500_tasks()
             {
                 DEBUG_MSG("Configured");
                 DEBUG_MSG("Disconnected");
-                status_monitor(true);
                 this.state = STATE_USB_DISCONNECTED;
             }
             break;
 
         case STATE_USB_DISCONNECTED:
-            status_monitor(false);
             if(BOARD_usb_detected() && this.status.status_regs.port_status_1.bits.attach)
             {
                 DEBUG_MSG("USB detected. Waiting power negotiation and stabilization...");
-                timer_set(CONNECTION_STABILIZATION_TIMEOUT);
-                this.state = STATE_USB_WAIT_CONNECTION_STABLE;
+                timer_set(NEGOTIATION_TIME_MS);
+                this.state = STATE_USB_WAITING_NEGOTIATION;
             }
             break;
 
-        case STATE_USB_WAIT_CONNECTION_STABLE:
-            status_monitor(false);
+        case STATE_USB_WAITING_NEGOTIATION:
             if(timer_out())
-            {
-                DEBUG_MSG("Reading RDO register...");
-                read_power_negotation_result(true, &this.rdo);
-                this.state = STATE_GETTING_POWER_PROFILE_RESULT;
-            }
-            break;
-
-        case STATE_GETTING_POWER_PROFILE_RESULT:
-            status_monitor(false);
-            if(read_power_negotation_result(false, &this.rdo))
-            {
-                DEBUG_MSG("Power profile read");
+            {   
+                DEBUG_MSG("Connected");
                 this.state = STATE_USB_CONNECTED;
             }
             break;
         
         case STATE_USB_CONNECTED:
-            status_monitor(false);
             if(!BOARD_usb_detected() && !this.status.status_regs.port_status_1.bits.attach)
             {
                 DEBUG_MSG("USB disconnected");
